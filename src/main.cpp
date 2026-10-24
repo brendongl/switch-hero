@@ -82,8 +82,7 @@ bool fretBindingAllowed(int b) {
            b == 33;
 }
 struct Settings {
-    std::array<int, 5> bindings = {SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 32,
-                                   SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 33, SDL_CONTROLLER_BUTTON_A};
+    std::array<int, 5> bindings = {1, 0, 3, 2, 32}; // Switch A, B, X, Y, ZL: how stock MissionControl shows the Wii guitar
     // A shorter lookahead puts fewer notes on the board at once; 1.8s packed
     // dense charts in far tighter than they could be read.
     double audioMs = 0, videoMs = 0, travel = 1.2;
@@ -1549,9 +1548,17 @@ int main(int argc, char **argv) {
             settings.wiiGuitar = true;
         Audio audio;
         audio.start(); // interface sounds work from the song list onward
-        enum class Screen { Language, Main, Library, Select, Playing, Paused, Countdown, Results, Settings, Calibrate, Download, Sections, Lobby };
+        enum class Screen { Notice, Language, Main, Library, Select, Playing, Paused, Countdown, Results, Settings, Calibrate, Download, Sections, Lobby };
         // The first start asks for a language before anything else.
         Screen screen = settings.language < 0 ? Screen::Language : Screen::Main;
+        // Cafe build: guitars and controllers need a staff member, so a notice comes first.
+        constexpr int noticeSeconds = 30;
+        const Uint64 noticeStart = SDL_GetTicks64();
+        int skipPresses = 0;
+        Uint64 lastSkipPress = 0;
+#ifdef __SWITCH__
+        screen = Screen::Notice;
+#endif
         int languageRow = int(lang::current());
         std::string callout;
         double calloutAt = -1;
@@ -2255,7 +2262,7 @@ int main(int argc, char **argv) {
                 if (!escapeStart)
                     escapeStart = SDL_GetTicks64();
                 else if (SDL_GetTicks64() - escapeStart > 2000 && screen != Screen::Library &&
-                         screen != Screen::Main && screen != Screen::Language) {
+                         screen != Screen::Main && screen != Screen::Language && screen != Screen::Notice) {
                     escapeStart = 0;
                     settings.wiiGuitar = false;
                     audio.stop();
@@ -2269,8 +2276,8 @@ int main(int argc, char **argv) {
             // While calibration is taking taps the guitar is an instrument, not a menu.
             bool guitarMenu = settings.wiiGuitar && screen != Screen::Playing &&
                               !(screen == Screen::Calibrate && !calibration.done());
-            accept = accept || (guitarMenu && press(9));
-            back = back || (guitarMenu && press(32));
+            accept = accept || (guitarMenu && press(wiiGuitarBindings[0]));
+            back = back || (guitarMenu && press(wiiGuitarBindings[1]));
             // B backs out of menus, as everywhere else on the Switch (button 0 is
             // the B position on both backends). Not where B is a fret: during
             // play and the resume count-in, while calibration takes taps, while
@@ -2280,7 +2287,7 @@ int main(int argc, char **argv) {
             const bool bBacks = !settings.wiiGuitar && screen != Screen::Playing && screen != Screen::Countdown &&
                                 !(screen == Screen::Calibrate && !calibration.done()) && remapping < 0 && !diagnostics;
             back = back || (bBacks && press(0));
-            bool secondary = press(2) || (guitarMenu && press(10));
+            bool secondary = press(2) || (guitarMenu && press(wiiGuitarBindings[2]));
             uint8_t frets = settings.wiiGuitar ? wiiGuitarFrets(buttons) : 0;
             SDL_Scancode fretKeys[] = {SDL_SCANCODE_A, SDL_SCANCODE_S, SDL_SCANCODE_D, SDL_SCANCODE_F,
                                        SDL_SCANCODE_G};
@@ -2309,7 +2316,19 @@ int main(int argc, char **argv) {
                 message.clear();
                 screen = Screen::Settings;
             };
-            if (screen == Screen::Language) {
+            if (screen == Screen::Notice) {
+                // Staff who already set the controllers up skip the wait with five quick presses of accept (green).
+                if (accept) {
+                    const Uint64 t = SDL_GetTicks64();
+                    if (t - lastSkipPress > 3000)
+                        skipPresses = 0;
+                    ++skipPresses, lastSkipPress = t;
+                    if (skipPresses >= 5 || t - noticeStart >= Uint64(noticeSeconds) * 1000) {
+                        audio.playSfx(Sfx::Select, .7f);
+                        screen = settings.language < 0 ? Screen::Language : Screen::Main;
+                    }
+                }
+            } else if (screen == Screen::Language) {
                 // Moving the cursor switches the language at once, so each
                 // choice previews itself. There is nothing to back out to.
                 if (up || down) {
@@ -2527,7 +2546,7 @@ int main(int argc, char **argv) {
             } else if (screen == Screen::Library) {
                 // In Wii guitar mode X is the guitar's Minus (the patch maps it
                 // there for star power), so only the blue fret deletes.
-                if (!entries.empty() && ((!settings.wiiGuitar && press(3)) || (guitarMenu && press(33)) ||
+                if (!entries.empty() && ((!settings.wiiGuitar && press(3)) || (guitarMenu && press(wiiGuitarBindings[3])) ||
                                          key(SDL_SCANCODE_DELETE) ||
                                          key(SDL_SCANCODE_X))) {
                     confirmDelete = true, deleteRow = 0;
@@ -2578,7 +2597,7 @@ int main(int argc, char **argv) {
                         jumpLabel = tr(groupOf(entries[selected])), jumpShownAt = now();
                         audio.playSfx(Sfx::Move);
                     }
-                    if (press(settings.wiiGuitar ? 0 : 33) || key(SDL_SCANCODE_Z)) {
+                    if (press(settings.wiiGuitar ? wiiGuitarBindings[4] : 33) || key(SDL_SCANCODE_Z)) {
                         settings.sortMode = (settings.sortMode + 1) % 3;
                         sortEntries(); // the same song stays selected
                         jumpLabel = tr(sortNames[settings.sortMode]), jumpShownAt = now();
@@ -2601,7 +2620,7 @@ int main(int argc, char **argv) {
                 if (screen == Screen::Library && (press(6) || key(SDL_SCANCODE_O)))
                     openDownloads();
             } else if (screen == Screen::Select) {
-                if ((!settings.wiiGuitar && press(3)) || (guitarMenu && press(33)) || key(SDL_SCANCODE_N)) {
+                if ((!settings.wiiGuitar && press(3)) || (guitarMenu && press(wiiGuitarBindings[3])) || key(SDL_SCANCODE_N)) {
                     settings.noFail = !settings.noFail;
                     audio.playSfx(Sfx::Toggle);
                 }
@@ -2734,7 +2753,7 @@ int main(int argc, char **argv) {
                             audio.playSfx(Sfx::Select);
                         }
                     }
-                    if (((!settings.wiiGuitar && press(3)) || (guitarMenu && press(33)) || key(SDL_SCANCODE_X)) &&
+                    if (((!settings.wiiGuitar && press(3)) || (guitarMenu && press(wiiGuitarBindings[3])) || key(SDL_SCANCODE_X)) &&
                         (!downloads.current.empty() || !downloads.queued.empty())) {
                         downloader->cancelAll();
                         audio.playSfx(Sfx::Back);
@@ -3491,7 +3510,33 @@ int main(int argc, char **argv) {
             }
             const std::string glyphAccept = acceptGlyph(settings.wiiGuitar), glyphBack = backGlyph(settings.wiiGuitar),
                               glyphAlt = altGlyph(settings.wiiGuitar);
-            if (screen == Screen::Language) {
+            if (screen == Screen::Notice) {
+                wall(ui, ink::crt);
+                auto title = stencil(66, ink::chrome, {116, 122, 138, 255});
+                title.align = Align::Center, title.glow = alpha(ink::crt, .5f), title.glowSpread = 1.2f;
+                text(640, 60, "SWITCH", title);
+                auto burning = stencil(66, {255, 196, 60, 255}, {206, 26, 20, 255});
+                burning.align = Align::Center, burning.glow = alpha(ink::blood, .85f), burning.glowSpread = 1.25f;
+                text(654, 116, "HERO", burning);
+                auto head = stencil(46, {255, 196, 60, 255}, {206, 26, 20, 255});
+                head.align = Align::Center;
+                text(640, 236, "STAFF HELP NEEDED", head);
+                auto line = body(30);
+                line.align = Align::Center;
+                text(640, 322, "The guitars and controllers need a staff member", line);
+                text(640, 362, "to connect them before you can play.", line);
+                text(640, 422, "Please ask staff for help. Do not press SYNC", line);
+                text(640, 462, "or pair controllers on your own.", line);
+                const int left = noticeSeconds - int((SDL_GetTicks64() - noticeStart) / 1000);
+                auto cd = body(34, {255, 196, 60, 255});
+                cd.align = Align::Center;
+                if (left > 0) {
+                    text(640, 560, "Please read this first. You can continue in " + std::to_string(left), cd);
+                } else {
+                    text(640, 560, "Staff have set up the controllers?", cd);
+                    hints({{glyphAccept, "CONTINUE"}});
+                }
+            } else if (screen == Screen::Language) {
                 wall(ui, ink::crt);
                 auto title = stencil(66, ink::chrome, {116, 122, 138, 255});
                 title.align = Align::Center, title.glow = alpha(ink::crt, .5f), title.glowSpread = 1.2f;

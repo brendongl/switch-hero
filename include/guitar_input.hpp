@@ -19,7 +19,8 @@ inline constexpr std::uint64_t controllerButtons(bool wiiGuitar, bool playing, b
                                                                     : standard;
 }
 // Button indices in the game's normalized SDL/libnx input representation.
-inline constexpr std::array<int, 5> wiiGuitarBindings = {9, 32, 10, 33, 0};
+// Stock MissionControl exposes the Wii guitar as A, B, X, Y, ZL (green to orange).
+inline constexpr std::array<int, 5> wiiGuitarBindings = {1, 0, 3, 2, 32};
 inline std::uint8_t wiiGuitarFrets(std::uint64_t buttons) {
     std::uint8_t frets = 0;
     for (int i = 0; i < 5; ++i)
