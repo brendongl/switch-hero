@@ -5,6 +5,7 @@
 #include "downloader.hpp"
 #include "game.hpp"
 #include "guitar_input.hpp"
+#include "notice_layout.hpp"
 #include "lang.hpp"
 #include "library.hpp"
 #include "look.hpp"
@@ -4938,6 +4939,19 @@ int main(int argc, char **argv) {
             // Grade the finished frame before anything reads it back, so a
             // screenshot shows what the player actually sees.
             grade(ui);
+            if (screen == Screen::Notice) {
+                // Drawn after the grade so the vignette doesn't swallow the mascots in the corners.
+                static SDL_Texture *noticeArt[std::size(notice::sprites)];
+                static bool noticeArtLoaded = false;
+                if (!noticeArtLoaded) {
+                    noticeArtLoaded = true;
+                    for (size_t i = 0; i < std::size(notice::sprites); ++i)
+                        noticeArt[i] = look::loadAssetImage(notice::sprites[i].file);
+                }
+                for (size_t i = 0; i < std::size(notice::sprites); ++i)
+                    look::sprite(noticeArt[i], notice::sprites[i].cx, notice::sprites[i].cy, notice::sprites[i].w,
+                                 notice::sprites[i].h);
+            }
             {
                 // Frame timing, summed over each second so it can be read off a TV:
                 // the average says how heavy frames are, the worst says whether

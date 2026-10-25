@@ -119,6 +119,10 @@ Image decodeArtwork(const fs::path &folder);
 Image decodeImage(const std::string &bytes);
 SDL_Texture *uploadArtwork(const Image &image); // null for an empty image
 SDL_Texture *loadArtwork(const fs::path &folder);
+// A PNG or JPEG shipped in the assets folder (RomFS), as a texture; null when missing.
+SDL_Texture *loadAssetImage(const std::string &relative);
+// An upright, untinted texture centred on (cx, cy).
+void sprite(SDL_Texture *texture, float cx, float cy, float w, float h);
 void photo(SDL_Texture *art, float cx, float cy, float size, float angleDeg, float shade = 1);
 void sticker(float cx, float cy, float r, float angleDeg, SDL_Color fill, const std::string &label);
 void star(float cx, float cy, float r, float angleDeg, SDL_Color fill, SDL_Color edge);

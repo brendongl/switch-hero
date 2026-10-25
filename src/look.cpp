@@ -1584,6 +1584,14 @@ SDL_Texture *uploadArtwork(const Image &image) {
     return t;
 }
 SDL_Texture *loadArtwork(const fs::path &folder) { return uploadArtwork(decodeArtwork(folder)); }
+SDL_Texture *loadAssetImage(const std::string &relative) {
+    const auto bytes = readAsset(relative);
+    return uploadArtwork(decodeImage(std::string(bytes.begin(), bytes.end())));
+}
+void sprite(SDL_Texture *texture, float cx, float cy, float w, float h) {
+    if (texture)
+        blitRotated(texture, cx, cy, w, h, 0, {255, 255, 255, 255});
+}
 // Album art as a printed square, the way a cover sits in a CD case.
 void photo(SDL_Texture *art, float cx, float cy, float size, float angleDeg, float shade) {
     if (!art)
